@@ -19,17 +19,122 @@
     <Exec Command="robocopy &quot;$(MSBuildProjectDirectory)\bin\$(Configuration)\net8.0-windows&quot; &quot;D:\Stuff\POE2\GameHelper\Plugins\$(ProjectName)&quot; /E /XO /R:2 /W:5 || exit 0" />
   </Target>
   
+  <!-- No content files copied by default; publish will be pruned to only the plugin DLL(s). -->
+
+  <!-- Optionally prune published output to a minimal set suitable for plugin deployment.
+       Set PrunePublishOutput to false to disable. -->
+  <!-- After publish, prune the publish output to keep only the plugin assembly (and optional pdb).
+       This removes all runtime package binaries and native runtimes so the `release` folder contains
+       only what you asked for. -->
+  <Target Name="PrunePublish" AfterTargets="Publish">
+    <ItemGroup>
+      <_AllPublishedFiles Include="$(PublishDir)**\*" />
+      <_KeepFiles Include="$(PublishDir)Wraedar.dll;$(PublishDir)Wraedar.pdb" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <_ToDelete Include="@(_AllPublishedFiles)" Exclude="@(_KeepFiles)" />
+    </ItemGroup>
+
+    <Message Importance="High" Text="Pruning publish output to keep only Wraedar.dll and Wraedar.pdb" />
+    <Delete Files="@(_ToDelete)" ContinueOnError="true" />
+    <RemoveDir Directories="$(PublishDir)runtimes" ContinueOnError="true" />
+    <RemoveDir Directories="$(PublishDir)api_dlls" ContinueOnError="true" />
+  </Target>
+
+  <!-- No local NuGet package references here; rely on host-provided assemblies or explicit references. -->
+
+  <!--
+    Conditional references to private / local assemblies used by the original developer.
+    Drop required DLLs into a `libs` folder at the project root (e.g. libs\GameHelper.dll)
+    and the corresponding Reference will be included automatically when the file exists.
+  -->
   <ItemGroup>
-    <Content Include="PinFiles\**">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Media\**">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <Reference Include="GameHelper" Condition="Exists('$(MSBuildProjectDirectory)\\libs\\GameHelper.dll')">
+      <HintPath>$(MSBuildProjectDirectory)\\libs\\GameHelper.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="GameOffsets" Condition="Exists('$(MSBuildProjectDirectory)\\libs\\GameOffsets.dll')">
+      <HintPath>$(MSBuildProjectDirectory)\\libs\\GameOffsets.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="ClickableTransparentOverlay" Condition="Exists('$(MSBuildProjectDirectory)\\libs\\ClickableTransparentOverlay.dll')">
+      <HintPath>$(MSBuildProjectDirectory)\\libs\\ClickableTransparentOverlay.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Coroutine" Condition="Exists('$(MSBuildProjectDirectory)\\libs\\Coroutine.dll')">
+      <HintPath>$(MSBuildProjectDirectory)\\libs\\Coroutine.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="DXT" Condition="Exists('$(MSBuildProjectDirectory)\\libs\\DXT.dll')">
+      <HintPath>$(MSBuildProjectDirectory)\\libs\\DXT.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
   </ItemGroup>
 
+  <!-- Do not copy local libs by default; keep publish output minimal. If you need libs for local debugging,
+       add them to a `libs` folder and reference them conditionally. -->
+
+    <!-- Also allow referencing precompiled GameHelper assemblies from a shared compiled folder. -->
+    <ItemGroup>
+      <Reference Include="GameHelper" Condition="Exists('C:\\auto_help\\GH_Compiled\\GameHelper.dll')">
+        <HintPath>C:\\auto_help\\GH_Compiled\\GameHelper.dll</HintPath>
+        <Private>True</Private>
+      </Reference>
+      <Reference Include="GameOffsets" Condition="Exists('C:\\auto_help\\GH_Compiled\\GameOffsets.dll')">
+        <HintPath>C:\\auto_help\\GH_Compiled\\GameOffsets.dll</HintPath>
+        <Private>True</Private>
+      </Reference>
+      <Reference Include="ClickableTransparentOverlay" Condition="Exists('C:\\auto_help\\GH_Compiled\\ClickableTransparentOverlay.dll')">
+        <HintPath>C:\\auto_help\\GH_Compiled\\ClickableTransparentOverlay.dll</HintPath>
+        <Private>True</Private>
+      </Reference>
+      <Reference Include="Coroutine" Condition="Exists('C:\\auto_help\\GH_Compiled\\Coroutine.dll')">
+        <HintPath>C:\\auto_help\\GH_Compiled\\Coroutine.dll</HintPath>
+        <Private>True</Private>
+      </Reference>
+      <Reference Include="DXT" Condition="Exists('C:\\auto_help\\GH_Compiled\\DXT.dll')">
+        <HintPath>C:\\auto_help\\GH_Compiled\\DXT.dll</HintPath>
+        <Private>True</Private>
+      </Reference>
+      <Reference Include="DieselExileTools_GameHelper2" Condition="Exists('C:\\auto_help\\GH_Compiled\\DieselExileTools_GameHelper2.dll')">
+        <HintPath>C:\\auto_help\\GH_Compiled\\DieselExileTools_GameHelper2.dll</HintPath>
+        <Private>True</Private>
+      </Reference>
+    </ItemGroup>
+
+    <!-- Also allow referencing precompiled API assemblies from local `api_dlls` folder. -->
+    <ItemGroup>
+      <Reference Include="GameHelper" Condition="Exists('C:\\auto_help\\Wraedar\\api_dlls\\GameHelper.dll')">
+        <HintPath>C:\\auto_help\\Wraedar\\api_dlls\\GameHelper.dll</HintPath>
+        <Private>True</Private>
+      </Reference>
+      <Reference Include="GameOffsets" Condition="Exists('C:\\auto_help\\Wraedar\\api_dlls\\GameOffsets.dll')">
+        <HintPath>C:\\auto_help\\Wraedar\\api_dlls\\GameOffsets.dll</HintPath>
+        <Private>True</Private>
+      </Reference>
+      <Reference Include="ClickableTransparentOverlay" Condition="Exists('C:\\auto_help\\Wraedar\\api_dlls\\ClickableTransparentOverlay.dll')">
+        <HintPath>C:\\auto_help\\Wraedar\\api_dlls\\ClickableTransparentOverlay.dll</HintPath>
+        <Private>True</Private>
+      </Reference>
+      <Reference Include="Coroutine" Condition="Exists('C:\\auto_help\\Wraedar\\api_dlls\\Coroutine.dll')">
+        <HintPath>C:\\auto_help\\Wraedar\\api_dlls\\Coroutine.dll</HintPath>
+        <Private>True</Private>
+      </Reference>
+      <Reference Include="DXT" Condition="Exists('C:\\auto_help\\Wraedar\\api_dlls\\DXT.dll')">
+        <HintPath>C:\\auto_help\\Wraedar\\api_dlls\\DXT.dll</HintPath>
+        <Private>True</Private>
+      </Reference>
+      <Reference Include="DieselExileTools_GameHelper2" Condition="Exists('C:\\auto_help\\Wraedar\\api_dlls\\DieselExileTools_GameHelper2.dll')">
+        <HintPath>C:\\auto_help\\Wraedar\\api_dlls\\DieselExileTools_GameHelper2.dll</HintPath>
+        <Private>True</Private>
+      </Reference>
+    </ItemGroup>
+
+    <!-- api_dlls copying disabled by default and removed from automatic publish flow. -->
+
   <ItemGroup>
-    <ProjectReference Include="..\DieselExileTools_GameHelper2\DieselExileTools_GameHelper2.csproj" />
+    <ProjectReference Include="..\DieselExileTools_GameHelper2\DieselExileTools_GameHelper2.csproj" Condition="Exists('..\\DieselExileTools_GameHelper2\\DieselExileTools_GameHelper2.csproj')" />
   </ItemGroup>
 
   <!-- References to GameHelper packages -->
@@ -77,6 +182,14 @@
       <Private>False</Private>
     </Reference>
 
+  </ItemGroup>
+  
+  <!-- Minimal compile-time package references to satisfy types used by the plugin.
+       These allow local builds/tests while the runtime host provides its own assemblies. -->
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.0" />
+    <PackageReference Include="ImGui.NET" Version="1.87.3" />
   </ItemGroup>
   
     
