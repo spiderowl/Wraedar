@@ -47,6 +47,105 @@ public sealed class IconRenderer(Plugin plugin) : PluginModule(plugin) {
         RenderIcons();
     }
 
+    // Render a compact set of icons on the corner minimap.
+    public void RenderMiniMap() {
+        if (!Settings.Icons.Enabled) return;
+
+        var mini = Core.States.InGameStateObject.GameUi.MiniMap;
+        if (mini == null || !mini.IsVisible) return;
+
+        var currentAreaInstance = Core.States.InGameStateObject.CurrentAreaInstance;
+        if (!currentAreaInstance.Player.TryGetComponent<Render>(out var playerRender)) return;
+        var playerPos = new SVector3(playerRender.GridPosition.X, playerRender.GridPosition.Y, playerRender.TerrainHeight);
+
+        // mini map center similar to Radar
+        var miniMapCenter = mini.Postion + (mini.Size / 2) + mini.DefaultShift + mini.Shift;
+        var diagonal = Math.Sqrt(mini.Size.X * mini.Size.X + mini.Size.Y * mini.Size.Y);
+        float scale = mini.Zoom;
+        var (cos, sin) = ComputeCosSin(diagonal, scale);
+
+        int considered = 0;
+        int drawn = 0;
+        foreach (var e in currentAreaInstance.AwakeEntities) {
+            var entity = e.Value;
+            if (entity == null) continue;
+            if (!Settings.Icons.DrawCached && !entity.IsValid) continue;
+            if (!entity.TryGetComponent<Render>(out var entityRender)) continue;
+
+            var entityState = entity.EntityState;
+            var entityType = entity.EntityType;
+            var entitySubtype = entity.EntitySubtype;
+
+            IconSettings? iconSettings = null;
+            // Determine iconSettings like in RenderIcons logic (simplified)
+            var customPathIconSettings = Settings.Icons.CustomPathIcons?.FirstOrDefault(settings => entity.Path.StartsWith(settings.Path, StringComparison.Ordinal));
+            if (customPathIconSettings != null) iconSettings = customPathIconSettings;
+            else if (entity.Path.StartsWith("Metadata/Monsters/MarakethSanctumTrial/Hazards/", StringComparison.Ordinal)) iconSettings = GetIconSettings(IconTypes.GroundSpike);
+            else if (entity.Path.StartsWith("Metadata/Terrain/Leagues/Sanctum/Objects/SanctumMote")) iconSettings = GetIconSettings(IconTypes.SanctumMote);
+            else if (entityState == EntityStates.Useless) continue;
+            else if (entityType == EntityTypes.NPC) iconSettings = GetIconSettings(IconTypes.NPC);
+            else if (entityState == EntityStates.MonsterFriendly) iconSettings = GetIconSettings(IconTypes.Minion);
+            else if (entitySubtype == EntitySubtypes.PlayerSelf) iconSettings = GetIconSettings(IconTypes.LocalPlayer);
+            else if (entitySubtype == EntitySubtypes.PlayerOther) iconSettings = GetIconSettings(IconTypes.OtherPlayer);
+            else if (entityType == EntityTypes.Monster) {
+                if (!entity.TryGetComponent<ObjectMagicProperties>(out var omp)) continue;
+                iconSettings = omp.Rarity switch {
+                    Rarity.Normal => GetIconSettings(IconTypes.NormalMonster),
+                    Rarity.Magic => GetIconSettings(IconTypes.MagicMonster),
+                    Rarity.Rare => GetIconSettings(IconTypes.RareMonster),
+                    Rarity.Unique => GetIconSettings(IconTypes.UniqueMonster),
+                    _ => GetIconSettings(IconTypes.NormalMonster)
+                };
+            }
+            else if (entityType == EntityTypes.Chest) {
+                if (!entity.TryGetComponent<ObjectMagicProperties>(out var omp)) continue;
+                // Simplified chest handling
+                iconSettings = omp.Rarity == Rarity.Rare ? GetIconSettings(IconTypes.ChestRare) : GetIconSettings(IconTypes.ChestWhite);
+            }
+
+            if (iconSettings == null || !iconSettings.Draw) continue;
+
+            considered++;
+
+            // compute mini-map screen pos
+            var delta = new System.Numerics.Vector2(entityRender.GridPosition.X - playerPos.X, entityRender.GridPosition.Y - playerPos.Y);
+            float dz = entityRender.TerrainHeight - playerPos.Z;
+            var fpos = DeltaInWorldToMapDelta(delta, dz, cos, sin);
+            var screen = miniMapCenter + fpos;
+
+            // choose size scaled for mini map
+            float size = MathF.Max(6, iconSettings.Size * (scale * 0.5f));
+            var rect = Plugin.GetCenteredRect(new SVector2(screen.X, screen.Y), size, size);
+
+            // color
+            var iconColor = iconSettings.Tint;
+            int iconIndex = iconSettings.Index;
+            if (iconSettings.AnimateLife) iconIndex = GetLifeIconIndex(entity, iconIndex, 8);
+
+            // If debugging, also draw a simple filled circle to ensure the position is correct
+            if (Settings.DebugWalkableTerrain) {
+                plugin.DrawCircleFilled(new SVector2(screen.X, screen.Y), MathF.Max(2f, size/3f));
+            }
+            plugin.DrawImage(plugin.IconAtlas.TextureId, rect, plugin.IconAtlas.GetIconUVRect(iconIndex), iconColor);
+            drawn++;
+        }
+
+        if (Settings.DebugWalkableTerrain) DXT.Log($"RenderMiniMap: considered={considered}, drawn={drawn}", false);
+    }
+
+    private static (float cos, float sin) ComputeCosSin(double diagonalLength, float scale) {
+        const double CameraAngle = 38.7 * Math.PI / 180.0;
+        float mapScale = 240f / scale;
+        float cos = (float)(diagonalLength * Math.Cos(CameraAngle) / mapScale);
+        float sin = (float)(diagonalLength * Math.Sin(CameraAngle) / mapScale);
+        return (cos, sin);
+    }
+
+    private static System.Numerics.Vector2 DeltaInWorldToMapDelta(System.Numerics.Vector2 delta, float deltaZ, float cos, float sin) {
+        deltaZ /= 10.86957f;
+        return new System.Numerics.Vector2((delta.X - delta.Y) * cos, (deltaZ - (delta.X + delta.Y)) * sin);
+    }
+
     //--| Render Icons |------------------------------------------------------------------------------------------------
     public void RenderIcons() {
         if (!Settings.Icons.Enabled) return;

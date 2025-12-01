@@ -195,6 +195,47 @@ public sealed class Plugin : PCore<Settings> {
             }
         }
 
+        // Also draw simplified icons/pins on the corner minimap when visible. Existing renderers
+        // draw to the overlay/large map; implement compact draws for the mini-map.
+        try {
+            var mini = Core.States.InGameStateObject?.GameUi?.MiniMap;
+            if (mini is { } && mini.IsVisible) {
+                // Create a transparent ImGui window on top of the mini-map so plugin.Draw* uses
+                // the correct draw list. We do not modify DXT state.
+                ImGui.SetNextWindowPos(mini.Postion);
+                ImGui.SetNextWindowSize(mini.Size);
+                ImGui.SetNextWindowBgAlpha(0f);
+                ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0f);
+                ImGui.Begin("Wraedar_minimap",
+                    ImGuiWindowFlags.NoDecoration |
+                    ImGuiWindowFlags.NoInputs |
+                    ImGuiWindowFlags.NoMove |
+                    ImGuiWindowFlags.NoScrollWithMouse |
+                    ImGuiWindowFlags.NoSavedSettings |
+                    ImGuiWindowFlags.NoFocusOnAppearing |
+                    ImGuiWindowFlags.NoBringToFrontOnFocus |
+                    ImGuiWindowFlags.NoBackground);
+                ImGui.PopStyleVar();
+
+                _wraedarWindowPtr = ImGui.GetWindowDrawList();
+
+                // Debug marker: draw a tiny circle at minimap center when debug enabled
+                if (Settings.DebugWalkableTerrain) {
+                    var miniMapCenter = mini.Postion + (mini.Size / 2) + mini.DefaultShift + mini.Shift;
+                    DrawCircleFilled(miniMapCenter, 3f); // white circle
+                    DrawCenteredText(miniMapCenter, "MINI", SColor.Red);
+                }
+
+                IconRenderer.RenderMiniMap();
+                PinRenderer.RenderMiniMap();
+
+                ImGui.End();
+            }
+        }
+        catch {
+            // swallow any mini-map drawing exceptions to avoid breaking overlay rendering
+        }
+
         ImGui.End();
     }
     //--| Draw Methods |-----------------------------------------------------------------------------------------------

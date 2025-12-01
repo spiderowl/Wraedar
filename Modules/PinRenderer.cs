@@ -251,6 +251,61 @@ public sealed class PinRenderer(Plugin plugin) : PluginModule(plugin)
         }
     }
 
+    // Render pin labels on the corner minimap (compact view)
+    public void RenderMiniMap() {
+        if (!Settings.Pin.Enabled) return;
+        if (_areaInstance == null) return;
+        if (_areaPinTileMatches == null || _areaPinTileMatches.Count == 0) return;
+
+        var mini = Core.States.InGameStateObject.GameUi.MiniMap;
+        if (mini == null || !mini.IsVisible) return;
+
+        var player = _areaInstance.Player;
+        if (!player.TryGetComponent<Render>(out var playerRender)) return;
+
+        var miniMapCenter = mini.Postion + (mini.Size / 2) + mini.DefaultShift + mini.Shift;
+        var diagonal = Math.Sqrt(mini.Size.X * mini.Size.X + mini.Size.Y * mini.Size.Y);
+        float scale = mini.Zoom;
+        var (cos, sin) = ComputeCosSin(diagonal, scale);
+
+        int considered = 0;
+        int drawn = 0;
+        foreach (var entry in _areaPinTileMatches) {
+            if (!entry.Pin.Enabled) continue;
+            foreach (var position in entry.TilePositions) {
+                float height = 0;
+                if (position.X < _areaInstance.GridHeightData[0].Length && position.Y < _areaInstance.GridHeightData.Length)
+                    height = _areaInstance.GridHeightData[(int)position.Y][(int)position.X] - playerRender.TerrainHeight;
+
+                var delta = new System.Numerics.Vector2(position.X - playerRender.GridPosition.X, position.Y - playerRender.GridPosition.Y);
+                var fpos = DeltaInWorldToMapDelta(delta, height, cos, sin);
+                var screen = miniMapCenter + fpos;
+
+                string labelSuffix = entry.TilePositions.Count > entry.Pin.ExpectedCount ? "?" : "";
+                var text = entry.Pin.Label + labelSuffix;
+                var textRect = Plugin.GetCenteredRect(new SVector2(screen.X, screen.Y), ImGui.CalcTextSize(text));
+                Plugin.DrawRectText(textRect, text, entry.Pin.TextColor, entry.Pin.BGColor, 1, SColor.Black);
+                drawn++;
+                considered++;
+            }
+        }
+
+        if (Settings.DebugWalkableTerrain) DXT.Log($"PinRenderer.RenderMiniMap: considered={considered}, drawn={drawn}", false);
+    }
+
+    private static (float cos, float sin) ComputeCosSin(double diagonalLength, float scale) {
+        const double CameraAngle = 38.7 * Math.PI / 180.0;
+        float mapScale = 240f / scale;
+        float cos = (float)(diagonalLength * Math.Cos(CameraAngle) / mapScale);
+        float sin = (float)(diagonalLength * Math.Sin(CameraAngle) / mapScale);
+        return (cos, sin);
+    }
+
+    private static System.Numerics.Vector2 DeltaInWorldToMapDelta(System.Numerics.Vector2 delta, float deltaZ, float cos, float sin) {
+        deltaZ /= 10.86957f;
+        return new System.Numerics.Vector2((delta.X - delta.Y) * cos, (deltaZ - (delta.X + delta.Y)) * sin);
+    }
+
     // | Pathfinding |----------------------------------------------------------------------------------------------------
     private SVector2? _lastPlayerPathGridPos = null;
     public void RenderPaths() {
