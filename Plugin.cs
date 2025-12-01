@@ -199,7 +199,8 @@ public sealed class Plugin : PCore<Settings> {
         // draw to the overlay/large map; implement compact draws for the mini-map.
         try {
             var mini = Core.States.InGameStateObject?.GameUi?.MiniMap;
-            if (mini is { } && mini.IsVisible) {
+            // Only draw mini-map overlays when the game window is focused
+            if (IsGameFocused && mini is { } && mini.IsVisible) {
                 // Create a transparent ImGui window on top of the mini-map so plugin.Draw* uses
                 // the correct draw list. We do not modify DXT state.
                 ImGui.SetNextWindowPos(mini.Postion);
