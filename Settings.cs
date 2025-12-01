@@ -103,7 +103,7 @@ namespace Wraedar
         public bool DrawName = false;
         public bool DrawHealth = false;
         public bool AnimateLife = false;
-        public int Size = 32;
+        public int Size = 48;
         public int Index = 0;
         public SColor Tint = DXT.Color.FromHsla(255, 255, 255, 255);
         public SColor HiddenTint = DXT.Color.FromRGBA(128, 128, 128, 255);

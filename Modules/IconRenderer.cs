@@ -113,8 +113,8 @@ public sealed class IconRenderer(Plugin plugin) : PluginModule(plugin) {
             var fpos = DeltaInWorldToMapDelta(delta, dz, cos, sin);
             var screen = miniMapCenter + fpos;
 
-            // choose size scaled for mini map
-            float size = MathF.Max(6, iconSettings.Size * (scale * 0.5f));
+            // choose fixed size for mini map icons (use 48px for clarity)
+            float size = 48f;
             var rect = Plugin.GetCenteredRect(new SVector2(screen.X, screen.Y), size, size);
 
             // color
